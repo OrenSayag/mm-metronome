@@ -1,9 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { MetronomeWorkerMessage } from "../../types/metronome.types";
+import {
+  MetronomeWorkerMessage,
+  TMuteConfig,
+} from "../../types/metronome.types";
 import { Button } from "../ui/button";
 import { Slider } from "../ui/slider";
 import { cn } from "../../lib/utils";
 import TimeSignature, { TTimeSignature } from "../metronome/time-signature";
+import MuteConfig from "../../components/metronome/mute-config";
 
 type Props = {
   startBpm?: number;
@@ -32,6 +36,8 @@ const Metronome: React.FC<Props> = ({
   const [bpm, setBpm] = useState(startBpm);
 
   const [nextNoteTime, setNextNoteTime] = useState(0.1);
+
+  const [mute, setMute] = useState<TMuteConfig | undefined>();
 
   const [playing, setPlaying] = useState(false);
   const [currentBeat, setCurrentBeat] = useState(0);
@@ -84,6 +90,7 @@ const Metronome: React.FC<Props> = ({
       setCurrentBeat(0);
       setNextNoteTime(0.1);
       setAudioContext(null);
+      setBeatCount(0);
     } else {
       console.log("Should click");
       console.log({ audioContext });
@@ -97,11 +104,42 @@ const Metronome: React.FC<Props> = ({
 
   const nextBeat = useMemo(
     () =>
-      currentBeat < timeSignature.numerator
-        ? (currentBeat % timeSignature.denominator) + 1
+      currentBeat <
+      (timeSignature.numerator > timeSignature.denominator
+        ? Math.max(timeSignature.numerator, timeSignature.denominator)
+        : timeSignature.numerator)
+        ? (currentBeat %
+            Math.max(timeSignature.numerator, timeSignature.denominator)) +
+          1
         : 1,
     [currentBeat, timeSignature],
   );
+
+  const [beatCount, setBeatCount] = useState(0);
+
+  const currentMeasure = useMemo(
+    () => Math.floor(beatCount / timeSignature.numerator) + 1,
+    [beatCount, timeSignature],
+  );
+
+  const shouldMute = useMemo(() => {
+    if (!mute?.isMute) return false;
+    if (
+      currentMeasure > mute!.per &&
+      currentMeasure <= mute!.per + mute!.muteAmount
+    )
+      return true;
+    if (mute!.per + mute!.muteAmount <= currentMeasure) {
+      setBeatCount(0);
+      return false;
+    }
+  }, [mute, currentMeasure]);
+
+  useEffect(() => {
+    if (mute?.isMute) {
+      setBeatCount(currentBeat);
+    }
+  }, [mute]);
 
   const click = useCallback(() => {
     if (!audioContext || !volumeNode) return;
@@ -110,11 +148,23 @@ const Metronome: React.FC<Props> = ({
     osc.frequency.value = nextBeat === 1 ? firstBeatFrequency : frequency;
 
     console.log(nextBeat === 1 ? "Bip" : "Bop");
-    osc.start(nextNoteTime);
 
-    osc.stop(nextNoteTime + 0.075);
+    if (!shouldMute) {
+      osc.start(nextNoteTime);
+      osc.stop(nextNoteTime + 0.075);
+    }
+
     setCurrentBeat(nextBeat);
-  }, [audioContext, volumeNode, nextBeat, nextNoteTime, firstBeatFrequency]);
+    setBeatCount((prevState) => prevState + 1);
+  }, [
+    audioContext,
+    volumeNode,
+    nextBeat,
+    nextNoteTime,
+    firstBeatFrequency,
+    beatCount,
+    shouldMute,
+  ]);
 
   const tick = useCallback(() => {
     if (!audioContext || !volumeNode) return;
@@ -161,6 +211,12 @@ const Metronome: React.FC<Props> = ({
           setTimeSignature(v);
         }}
       />
+      <MuteConfig onValueChange={(config) => setMute(config)} config={mute} />
+      {/*{JSON.stringify({*/}
+      {/*  beatCount,*/}
+      {/*  currentMeasure,*/}
+      {/*  perAndMute: mute!.per + mute!.muteAmount,*/}
+      {/*})}*/}
     </div>
   );
 };

@@ -4,3 +4,5 @@ export enum MetronomeWorkerMessage {
   INTERVAL = "interval",
   CLOSE = "close",
 }
+
+export type TMuteConfig = { muteAmount: number; per: number; isMute: boolean };
