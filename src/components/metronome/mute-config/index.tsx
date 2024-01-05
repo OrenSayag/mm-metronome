@@ -18,7 +18,7 @@ const MuteConfig: FC<Props> = ({
 }) => {
   return (
     <>
-      <div className={cn("flex flex-col gap-2", className)} {...props}>
+      <div className={cn("flex flex-col gap-2 pb-6", className)} {...props}>
         <div className={"flex gap-2"}>
           <Checkbox
             onCheckedChange={(c) =>
@@ -57,7 +57,7 @@ const MuteConfig: FC<Props> = ({
             disabled={!config?.isMute}
             value={config?.muteAmount}
           />
-          <span className={"absolute right-0"}>Bar</span>
+          <span className={"absolute right-0"}>Bars</span>
         </div>
         <label>Per:</label>
         <div className={"relative"}>

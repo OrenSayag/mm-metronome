@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   MetronomeWorkerMessage,
+  TAutoTempoIncreaseConfig,
   TMuteConfig,
 } from "../../types/metronome.types";
 import { Button } from "../ui/button";
@@ -8,6 +9,7 @@ import { Slider } from "../ui/slider";
 import { cn } from "../../lib/utils";
 import TimeSignature, { TTimeSignature } from "../metronome/time-signature";
 import MuteConfig from "../../components/metronome/mute-config";
+import AutoTempoChange from "../../components/metronome/auto-tempo-change";
 
 type Props = {
   startBpm?: number;
@@ -38,6 +40,14 @@ const Metronome: React.FC<Props> = ({
   const [nextNoteTime, setNextNoteTime] = useState(0.1);
 
   const [mute, setMute] = useState<TMuteConfig | undefined>();
+
+  const [autoTempoChange, setAutoTempoIncrease] =
+    useState<TAutoTempoIncreaseConfig>({
+      active: false,
+      perMeasures: 1,
+      step: 5,
+      direction: "increase",
+    });
 
   const [playing, setPlaying] = useState(false);
   const [currentBeat, setCurrentBeat] = useState(0);
@@ -100,8 +110,6 @@ const Metronome: React.FC<Props> = ({
     setPlaying(!playing);
   };
 
-  useEffect(() => {}, [audioContext, volumeNode]);
-
   const nextBeat = useMemo(
     () =>
       currentBeat <
@@ -118,18 +126,44 @@ const Metronome: React.FC<Props> = ({
   const [beatCount, setBeatCount] = useState(0);
 
   const currentMeasure = useMemo(
-    () => Math.floor(beatCount / timeSignature.numerator) + 1,
+    () => Math.floor(beatCount / timeSignature.numerator),
     [beatCount, timeSignature],
   );
+
+  const latestMeasure = useMemo(
+    () => Math.floor((beatCount - 1) / timeSignature.numerator),
+    [beatCount, timeSignature],
+  );
+
+  useEffect(() => {
+    const { step, perMeasures, direction, active, random } = autoTempoChange;
+    const finalStep = random ? Math.floor(Math.random() * 50) + 1 : step;
+    if (!active || latestMeasure < 1) return;
+    const _perMeasures =
+      perMeasures === "random"
+        ? Math.floor(Math.random() * 4) + 1
+        : perMeasures;
+    if (latestMeasure % _perMeasures === 0) {
+      if (direction === "random") {
+        setBpm((prevState) =>
+          Math.random() > 0.5 ? prevState + finalStep : prevState - finalStep,
+        );
+      } else if (direction === "increase") {
+        setBpm((prevState) => prevState + finalStep);
+      } else {
+        setBpm((prevState) => prevState - finalStep);
+      }
+    }
+  }, [autoTempoChange, latestMeasure]);
 
   const shouldMute = useMemo(() => {
     if (!mute?.isMute) return false;
     if (
-      currentMeasure > mute!.per &&
-      currentMeasure <= mute!.per + mute!.muteAmount
+      currentMeasure + 1 > mute!.per &&
+      currentMeasure + 1 <= mute!.per + mute!.muteAmount
     )
       return true;
-    if (mute!.per + mute!.muteAmount <= currentMeasure) {
+    if (mute!.per + mute!.muteAmount <= currentMeasure + 1) {
       setBeatCount(0);
       return false;
     }
@@ -211,7 +245,14 @@ const Metronome: React.FC<Props> = ({
           setTimeSignature(v);
         }}
       />
-      <MuteConfig onValueChange={(config) => setMute(config)} config={mute} />
+      <MuteConfig
+        onValueChange={(config: TMuteConfig | undefined) => setMute(config)}
+        config={mute}
+      />
+      <AutoTempoChange
+        config={autoTempoChange}
+        onValueChange={(v: TAutoTempoIncreaseConfig) => setAutoTempoIncrease(v)}
+      />
       {/*{JSON.stringify({*/}
       {/*  beatCount,*/}
       {/*  currentMeasure,*/}
